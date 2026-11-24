@@ -1,0 +1,107 @@
+# Perfis, permissões e operação
+
+## Supervisor
+
+O supervisor acessa o painel de gestão e possui visão completa das demandas, inclusive as de TI. Ele pode:
+
+- cadastrar unidades e setores;
+- abrir demandas e escolher a categoria TI;
+- consultar demandas de todos os status e categorias;
+- filtrar pela sidebar as demandas de TI ou de manutenção geral;
+- pesquisar por prioridade, protocolo, escola/unidade, tipo de manutenção em lista suspensa pesquisável ou data de solicitação;
+- os seletores de filtro acompanham as cores dos temas claro e escuro;
+- editar prioridade, tipo de OS, instituição, relato original, parecer técnico e status.
+
+### Abrir uma demanda
+
+1. Acesse **Painel Principal**.
+2. Escolha o tipo de manutenção, a unidade, a prioridade e descreva a solicitação.
+3. Para atendimento de tecnologia, escolha **TI**.
+4. Selecione **Abrir Chamado** e anote o protocolo apresentado.
+
+As categorias disponíveis incluem **Limpeza de Caixa d'água**, **Cobertura (Telhados)**, **Serralheria**, **Montagem de Mobiliário e Equipamentos**, **Geral** e **Outros**, além das categorias existentes.
+
+O protocolo é sequencial e controlado pelo documento `configuracoes/contador_protocolo` em uma transação do Firestore.
+
+## Técnico
+
+O cargo `tecnico` usa o painel colaborativo com sidebar para abrir, visualizar e atualizar chamados de qualquer categoria e status. Pode separar demandas de TI e manutenção geral, pesquisar e editar prioridade, tipo de OS, instituição e parecer técnico.
+
+Os cards das demandas possuem o botão **Minimizar**. No estado minimizado permanecem visíveis somente o número do protocolo, o nome da escola e o botão **Expandir**. Clicar em qualquer área do card minimizado também o expande. O controle acima da listagem permite minimizar ou expandir de uma vez todas as demandas visíveis no filtro atual. O estado é mantido durante atualizações em tempo real da listagem.
+
+Ao abrir um chamado, a unidade deve ser escolhida na lista mantida pelo supervisor. Técnico e TI podem consultar unidades, mas somente o supervisor pode cadastrá-las.
+
+O campo **Pesquisar escola / unidade** permite digitar parte do nome e selecionar uma opção da lista suspensa. O sistema bloqueia a abertura se o texto não corresponder a uma escola cadastrada.
+
+O parecer é obrigatório para concluir ou cancelar uma demanda.
+
+Todos os usuários operacionais podem excluir uma demanda pelo botão **Excluir demanda**. Antes da exclusão, o sistema exibe o número do protocolo e exige confirmação. A exclusão é permanente e não altera nem reutiliza o contador de protocolos.
+
+## Cessão de uso
+
+A sidebar dos painéis possui o botão **Cessão de uso**. Todos os perfis operacionais podem acessar a página, registrar e consultar cessões. Para registrar, informe produto, pessoa ou setor destinatário, número de tombo, data da cessão e devolução prevista. Enquanto estiver em uso, o card fica amarelo. Ao informar a data real, selecionar o estado do bem — **Bom estado**, **Com avarias** ou **Danificado** — e confirmar a devolução, o status muda definitivamente para **Devolvido**, o card fica verde e passa a mostrar data, estado e responsável pela confirmação.
+
+## Relatórios mensais
+
+A opção **Relatórios** está disponível nas sidebars. Selecione o mês, a categoria **TI** ou **Manutenção geral** e, opcionalmente, uma unidade. O relatório agrupa as demandas por escola e apresenta protocolo, solicitação, data de abertura, data de conclusão, status e parecer técnico. Demandas ainda não concluídas permanecem no relatório com os campos de conclusão não informados. O botão **Imprimir / PDF** abre a impressão do navegador com layout A4 horizontal. O cabeçalho traz a logo e o nome da instituição, configuráveis em `public/views/relatorios.html`. No rodapé da última folha há campos para assinatura do técnico responsável e para o ateste de execução do serviço.
+
+No painel geral do supervisor, o botão **Emitir relatório** de cada card abre o relatório individual daquela demanda, também preparado para impressão ou PDF e com os dois campos de assinatura.
+
+## Estoque integrado às ordens de serviço
+
+A opção **Estoque** está disponível na sidebar. Todos os usuários operacionais podem consultar produtos e saldos. Somente o cargo `supervisor` pode cadastrar produtos, adicionar entradas, arquivar ou reativar itens e consultar o histórico consolidado. O código de referência não é digitado: ele é gerado automaticamente a partir do identificador único do produto.
+
+Cada demanda possui o campo opcional **Materiais usados na OS**. Digite o nome do produto, selecione uma opção da lista pesquisável, informe a quantidade e clique em **Adicionar**. É possível registrar diversos produtos na mesma OS. O saldo é conferido e debitado em transação; se qualquer validação falhar, nada é retirado. O botão **Remover** estorna a quantidade ao estoque quando um item foi informado incorretamente.
+
+## TI
+
+O cargo `ti` usa o mesmo painel colaborativo e possui as mesmas permissões operacionais sobre os chamados. A distinção de cargo permanece apenas para identificação e auditoria de quem realizou cada alteração.
+
+## Sidebar e busca
+
+- **Todas as demandas:** remove o filtro de categoria.
+- **Demandas de TI:** mostra somente `tipo_manutencao = TI`.
+- **Manutenção geral:** mostra todas as categorias diferentes de TI.
+- As filas de status mostram pendentes, em andamento ou canceladas; as concluídas são separadas entre **TI** e **manutenção geral**.
+- Na listagem padrão, pendentes e em andamento aparecem primeiro, dos protocolos mais antigos para os mais novos. Concluídas ficam abaixo e canceladas por último.
+- Ao selecionar **Prioridade** em **Todas**, a listagem mostra pendentes na ordem **Crítico, Alta e Normal**. Em uma aba de status, a aba prevalece e a ordenação é aplicada somente às demandas daquele status.
+- A cor do card identifica a situação: **Normal** em amarelo, **Alta/Grave** em vermelho, **Crítico** em vermelho mais intenso e **Concluído** em verde, independentemente da prioridade.
+- As demais buscas aceitam número do protocolo e data de solicitação.
+- **Unidades / Setores** aparece somente no painel do supervisor.
+- O **relato original** também é editável somente pelo supervisor.
+
+## Fluxo de status
+
+```text
+Pendente -> Em Andamento -> Concluído
+                         -> Cancelado
+```
+
+O supervisor também pode forçar uma alteração entre os status disponíveis. Ao concluir ou cancelar, a aplicação grava `concluido_em`.
+
+## Administração de usuários
+
+Os perfis são documentos em `usuarios/{uid}`. Para trocar a função de uma conta, atualize o campo `cargo` no Console do Firestore ou por uma ferramenta administrativa protegida.
+
+Exemplo de usuário TI:
+
+```json
+{
+  "nome": "Nome do profissional",
+  "email": "profissional@exemplo.com",
+  "cargo": "ti",
+  "criado_em": "2026-07-23T12:00:00.000Z"
+}
+```
+
+Evite conceder `supervisor` sem necessidade, pois esse perfil possui visão e controle amplos.
+
+## Checklist de homologação
+
+- Supervisor enxerga demandas TI e não TI.
+- Supervisor consegue criar uma demanda escolhendo TI.
+- Cargos técnico e TI visualizam e atualizam chamados de todas as categorias e status.
+- Cargos técnico e TI conseguem abrir novos chamados.
+- Parecer vazio bloqueia conclusão e cancelamento.
+- Toda edição ou alteração de status registra o responsável autenticado e o horário do servidor.
+- Usuário sem perfil/cargo válido não acessa os dados operacionais.

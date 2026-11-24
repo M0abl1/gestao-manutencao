@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel do Supervisor</title>
+    <link rel="stylesheet" href="../css/supervisor.css">
+    <style>
+        /* Estilos adaptáveis ao Tema Claro/Escuro */
+        .card-demanda {
+            background: var(--bg-card, #ffffff); 
+            border: 1px solid var(--borda, #e0e0e0); 
+            color: var(--texto-principal, #333333);
+            border-radius: 8px; padding: 16px; margin-bottom: 16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 8px;
+        }
+        .card-demanda.prioridade-normal { background:#fef3c7; border-color:#f59e0b; border-left:6px solid #f59e0b; }
+        .card-demanda.prioridade-grave { background:#fee2e2; border-color:#ef4444; border-left:6px solid #ef4444; }
+        .card-demanda.prioridade-critico { background:#fecaca; border-color:#7f1d1d; border-left:6px solid #7f1d1d; }
+        .card-demanda.demanda-concluida { background:#dcfce7; border-color:#16a34a; border-left:6px solid #16a34a; }
+        .header-demanda {
+            display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;
+            border-bottom: 1px solid var(--borda, #eeeeee); 
+            padding-bottom: 8px; margin-bottom: 8px;
+        }
+        .protocolo { font-weight: bold; color: #3b82f6; }
+        .badge { padding: 4px 8px; border-radius: 4px; color: white; font-size: 12px; font-weight: bold; }
+        .btn-acao { border: none; border-radius: 4px; padding: 8px 12px; color: white; cursor: pointer; font-weight: bold; flex: 1; }
+        .btn-acao:hover { opacity: 0.9; }
+        
+        /* Tabela de Unidades responsiva ao tema */
+        .tabela-unidades { width: 100%; border-collapse: collapse; margin-top: 15px; color: var(--texto-principal); }
+        .tabela-unidades th { text-align: left; padding: 10px; border-bottom: 2px solid var(--borda); }
+        .tabela-unidades td { padding: 10px; border-bottom: 1px solid var(--borda); }
+        @media (prefers-color-scheme: dark) {
+            .card-demanda.prioridade-normal { background:#422006; border-color:#f59e0b; }
+            .card-demanda.prioridade-grave { background:#450a0a; border-color:#ef4444; }
+            .card-demanda.prioridade-critico { background:#2b0505; border-color:#f87171; }
+            .card-demanda.demanda-concluida { background:#052e16; border-color:#22c55e; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h3>Menu Gestão</h3>
+        </div>
+        <nav style="display: flex; flex-direction: column; flex: 1;">
+            <div class="menu-item ativo" data-alvo="geral" data-categoria="todas" data-status="todos"><span>📋</span> Todas as Demandas</div>
+            <div class="menu-item" data-alvo="geral" data-categoria="ti" data-status="todos"><span>💻</span> Demandas de TI</div>
+            <div class="menu-item" data-alvo="geral" data-categoria="geral" data-status="todos"><span>🛠️</span> Manutenção Geral</div>
+            <div class="menu-item" data-alvo="pendentes" data-categoria="todas" data-status="Pendente"><span>⏳</span> Pendentes</div>
+            <div class="menu-item" data-alvo="andamento" data-categoria="todas" data-status="Em Andamento"><span>⚡</span> Em Andamento</div>
+            <div class="menu-item" data-alvo="concluidas" data-categoria="ti" data-status="Concluído"><span>✅</span> Concluídas TI</div>
+            <div class="menu-item" data-alvo="concluidas" data-categoria="geral" data-status="Concluído"><span>✅</span> Concluídas manutenção</div>
+            <div class="menu-item" data-alvo="canceladas" data-categoria="todas" data-status="Cancelado"><span>❌</span> Canceladas</div>
+            <div class="menu-item" id="btnEmprestimos"><span>📦</span> Cessão de uso</div>
+            <div class="menu-item" id="btnEstoque"><span>🗃️</span> Estoque</div>
+            <div class="menu-item" id="btnRelatorios"><span>📊</span> Relatórios</div>
+            <div class="menu-item" data-alvo="unidades"><span>🏢</span> Unidades / Setores</div>
+            
+            <div class="menu-item" id="btnSair" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.05); color: #ef4444;">
+                <span>🚪</span> Sair da Conta
+            </div>
+        </nav>
+    </aside>
+    <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
+
+    <!-- CONTEÚDO PRINCIPAL -->
+    <main class="conteudo-principal" id="conteudoPrincipal">
+        <header>
+            <button class="btn-toggle" id="btnToggleSidebar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </button>
+            <h2 id="tituloPagina" style="margin: 0;">Painel Principal</h2>
+        </header>
+        <div id="telaErro" class="alerta-erro" hidden></div>
+
+        <!-- BUSCA -->
+        <div class="card" style="padding: 12px 20px;">
+            <div style="display: flex; gap: 10px; align-items: center; background: var(--bg-principal, #f3f4f6); padding: 4px 10px; border-radius: 8px;">
+                <span>🔍</span>
+                <select id="filtroBusca" aria-label="Filtrar busca por" style="border:none; border-right: 1px solid var(--borda); border-radius: 0; background:transparent; width:auto; padding-right:10px; color: var(--texto-principal);">
+                    <option value="todos">Todos os campos</option>
+                    <option value="protocolo">Nº do protocolo</option>
+                    <option value="unidade">Escola / unidade</option>
+                    <option value="tipo_manutencao">Tipo de manutenção</option>
+                    <option value="prioridade">Prioridade</option>
+                    <option value="data">Data de solicitação</option>
+                </select>
+                <input type="search" id="inputBusca" placeholder="Digite para filtrar a listagem..." style="border:none; background:transparent; width:100%; outline:none; color: var(--texto-principal);">
+                <input id="inputBuscaUnidade" list="listaBuscaUnidades" type="search" autocomplete="off" placeholder="Digite o nome da escola" aria-label="Pesquisar escola ou unidade" hidden style="width:100%; background:var(--bg-card, #fff); color:var(--texto-principal); border:1px solid var(--borda);">
+                <datalist id="listaBuscaUnidades"></datalist>
+                <datalist id="listaBuscaTipos"></datalist>
+                <button class="btn-alternar-todas" type="button" data-alternar-todas-demandas aria-expanded="true">Minimizar todas</button>
+            </div>
+        </div>
+
+        <!-- SEÇÃO: GERAL -->
+        <section id="painel-geral" class="secao-painel ativa">
+            <!-- Novo Chamado -->
+            <div class="card">
+                <h3>Nova Solicitação de Atendimento</h3>
+                <form id="formDemanda" style="margin-top: 12px;">
+                    <div class="grid-form">
+                        <div class="form-group">
+                            <label>Tipo da Manutenção</label>
+                            <select id="tipoManutencao" style="background: var(--bg-principal); color: var(--texto-principal); border: 1px solid var(--borda);">
+                                <option value="Elétrica">Elétrica</option>
+                                <option value="Hidráulica">Hidráulica</option>
+                                <option value="Patrimônio">Patrimônio</option>
+                                <option value="Capina">Capina</option>
+                                <option value="Limpeza de Caixa d'água">Limpeza de Caixa d'água</option>
+                                <option value="Marcenaria">Marcenaria</option>
+                                <option value="Alvenaria">Alvenaria</option>
+                                <option value="Cobertura (Telhados)">Cobertura (Telhados)</option>
+                                <option value="Serralheria">Serralheria</option>
+                                <option value="Montagem de Mobiliário e Equipamentos">Montagem de Mobiliário e Equipamentos</option>
+                                <option value="Geral">Geral</option>
+                                <option value="Outros">Outros</option>
+                                <option value="TI">TI</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Pesquisar Escola / Unidade</label>
+                            <input id="unidadeAtendida" list="listaEscolas" required autocomplete="off" placeholder="Digite o nome da escola" style="background: var(--bg-principal); color: var(--texto-principal); border: 1px solid var(--borda);">
+                            <datalist id="listaEscolas"></datalist>
+                        </div>
+                        <div class="form-group">
+                            <label>Quem foi Atendido</label>
+                            <input type="text" id="quemAtendido" placeholder="Ex: Sala 04 (Opcional)" style="background: var(--bg-principal); color: var(--texto-principal); border: 1px solid var(--borda);">
+                        </div>
+                    </div>
+                    <div class="grid-form">
+                        <div class="form-group">
+                            <label>Prioridade</label>
+                            <select id="prioridade" style="background: var(--bg-principal); color: var(--texto-principal); border: 1px solid var(--borda);">
+                                <option value="Normal" selected>Normal</option>
+                                <option value="Alta">Alta</option>
+                                <option value="Crítico">Crítico</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label>Descrição Breve</label>
+                            <input type="text" id="descricao" placeholder="Opcional" style="background: var(--bg-principal); color: var(--texto-principal); border: 1px solid var(--borda);">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn">Abrir Chamado</button>
+                </form>
+            </div>
+            
+            <div class="card">
+                <h3>Lista de Protocolos Ativos</h3>
+                <div id="listaGeral" style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;"></div>
+            </div>
+        </section>
+
+        <!-- SEÇÕES DE STATUS -->
+        <section id="painel-pendentes" class="secao-painel">
+            <div class="card">
+                <h3>Demandas Pendentes</h3>
+                <div id="listaPendentes" style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;"></div>
+            </div>
+        </section>
+        
+        <section id="painel-andamento" class="secao-painel">
+            <div class="card">
+                <h3>Em Andamento</h3>
+                <div id="listaAndamento" style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;"></div>
+            </div>
+        </section>
+        
+        <section id="painel-concluidas" class="secao-painel">
+            <div class="card">
+                <h3>Concluídas</h3>
+                <div id="listaConcluidas" style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;"></div>
+            </div>
+        </section>
+        
+        <section id="painel-canceladas" class="secao-painel">
+            <div class="card">
+                <h3>Canceladas</h3>
+                <div id="listaCanceladas" style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;"></div>
+            </div>
+        </section>
+
+        <!-- SEÇÃO: GERENCIAR UNIDADES -->
+        <section id="painel-unidades" class="secao-painel">
+            <div class="card">
+                <h3>Cadastrar Nova Unidade / Setor</h3>
+                <form id="formUnidade" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 12px; align-items: end;">
+                    <div class="form-group">
+                        <label>Nome da Unidade</label>
+                        <input type="text" id="nomeUnidade" required style="background: var(--bg-principal); color: var(--texto-principal); border: 1px solid var(--borda);">
+                    </div>
+                    <div class="form-group">
+                        <label>Endereço / Localização</label>
+                        <input type="text" id="enderecoUnidade" required style="background: var(--bg-principal); color: var(--texto-principal); border: 1px solid var(--borda);">
+                    </div>
+                    <button type="submit" class="btn" style="height: 42px;">Salvar Setor</button>
+                </form>
+            </div>
+            <div class="card">
+                <h3>Unidades Cadastradas</h3>
+                <table class="tabela-unidades">
+                    <thead><tr><th>Nome da Unidade</th><th>Endereço / Local</th></tr></thead>
+                    <tbody id="corpoTabelaUnidades"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- SCRIPT DO FIREBASE (Com importação do addDoc inserida) -->
+    <script type="module">
+        import { db, auth } from '../src/config/firebase.js';
+        import { collection, query, orderBy, onSnapshot, doc, getDoc, updateDoc, deleteDoc, addDoc, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { onAuthStateChanged, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { inicializarMateriaisOs } from '../src/controllers/materiaisOs.js';
+        import { inicializarCardsMinimizaveis } from '../src/controllers/cardsDemandas.js';
+
+        const STATUS_PERMITIDOS = new Set(['Pendente', 'Em Andamento', 'Concluído', 'Cancelado']);
+        const TIPOS_OS = ['Elétrica', 'Hidráulica', 'Patrimônio', 'Capina', "Limpeza de Caixa d'água", 'Marcenaria', 'Alvenaria',
+            'Cobertura (Telhados)', 'Serralheria', 'Montagem de Mobiliário e Equipamentos', 'Geral', 'Outros', 'TI'];
+        const PRIORIDADES = ['Normal', 'Alta', 'Crítico'];
+        const prioridadeAtual = (valor) => valor === 'Baixa' || valor === 'Média' ? 'Normal' : valor || 'Normal';
+        const tipoOsAtual = (valor) => valor === 'Limpeza' ? 'Capina' : valor || 'Geral';
+        const classeCorDemanda = demanda => {
+            if (demanda.status === 'Concluído') return 'demanda-concluida';
+            if (demanda.prioridade === 'Crítico') return 'prioridade-critico';
+            if (demanda.prioridade === 'Alta' || demanda.prioridade === 'Grave') return 'prioridade-grave';
+            return 'prioridade-normal';
+        };
+        let perfilUsuarioAtual = null;
+        let supervisorFiltroCategoria = 'todas';
+        let supervisorFiltroStatus = 'todos';
+        inicializarCardsMinimizaveis();
+        const escolasDisponiveis = new Set();
+        const escapeHtml = (valor) => String(valor ?? '').replace(/[&<>'\"]/g, caractere => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+        }[caractere]));
+        const normalizar = (valor) => String(valor || '').trim().toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        document.getElementById('listaBuscaTipos').innerHTML = TIPOS_OS.map(tipo =>
+            `<option value="${escapeHtml(tipo)}"></option>`
+        ).join('');
+
+        function mostrarErro(mensagem) {
+            const caixa = document.getElementById('telaErro');
+            caixa.hidden = false;
+            caixa.textContent = mensagem;
+        }
+
+        async function negarAcesso(mensagem) {
+            alert(mensagem);
+            try {
+                await signOut(auth);
+            } finally {
+                window.location.replace('../index.html');
+            }
+        }
+
+        // NAVEGAÇÃO ENTRE ABAS
+        document.querySelectorAll('.menu-item[data-alvo]').forEach(item => {
+            item.addEventListener('click', (e) => {
+                document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('ativo'));
+                e.currentTarget.classList.add('ativo');
+                document.querySelectorAll('.secao-painel').forEach(s => s.classList.remove('ativa'));
+                document.getElementById(`painel-${e.currentTarget.dataset.alvo}`).classList.add('ativa');
+                document.getElementById('tituloPagina').innerText = e.currentTarget.innerText;
+                supervisorFiltroCategoria = e.currentTarget.dataset.categoria || 'todas';
+                supervisorFiltroStatus = e.currentTarget.dataset.status || 'todos';
+                aplicarFiltroBusca();
+                fecharSidebarMobile();
+            });
+        });
+
+        function fecharSidebarMobile() {
+            if (window.matchMedia('(max-width: 768px)').matches) {
+                document.getElementById('sidebar').classList.remove('interna-aberta');
+                document.getElementById('sidebarBackdrop').classList.remove('visivel');
+                document.body.classList.remove('menu-mobile-aberto');
+            }
+        }
+
+        document.getElementById('btnToggleSidebar').addEventListener('click', () => {
+            const aberto = document.getElementById('sidebar').classList.toggle('interna-aberta');
+            document.getElementById('sidebarBackdrop').classList.toggle('visivel', aberto);
+            document.body.classList.toggle('menu-mobile-aberto', aberto);
+        });
+        document.getElementById('sidebarBackdrop').addEventListener('click', fecharSidebarMobile);
+        document.getElementById('btnEmprestimos').addEventListener('click', () => { window.location.href = 'emprestimos.html'; });
+        document.getElementById('btnEstoque').addEventListener('click', () => { window.location.href = 'estoque.html'; });
+        document.getElementById('btnRelatorios').addEventListener('click', () => { window.location.href = 'relatorios.html'; });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') fecharSidebarMobile();
+        });
+        window.addEventListener('resize', () => {
+            if (!window.matchMedia('(max-width: 768px)').matches) {
+                document.getElementById('sidebar').classList.remove('interna-aberta');
+                document.getElementById('sidebarBackdrop').classList.remove('visivel');
+                document.body.classList.remove('menu-mobile-aberto');
+            }
+        });
+
+        // 🔒 AUTENTICAÇÃO
+        setPersistence(auth, browserLocalPersistence).then(() => {
+            onAuthStateChanged(auth, async (user) => {
+                if (!user) {
+                    setTimeout(() => { if (!auth.currentUser) window.location.href = '../index.html'; }, 500);
+                    return;
+                }
+                let userDoc;
+                try {
+                    userDoc = await getDoc(doc(db, "usuarios", user.uid));
+                } catch (error) {
+                    console.error("Falha ao consultar o perfil:", error);
+                    mostrarErro(`Não foi possível consultar suas permissões: ${error.code || 'erro-desconhecido'}`);
+                    return;
+                }
+                try {
+                    const cargoNormalizado = String(userDoc.data()?.cargo || '').trim().toLocaleLowerCase('pt-BR');
+                    if (!userDoc.exists() || cargoNormalizado !== 'supervisor') {
+                        await negarAcesso("Acesso negado: Painel exclusivo para supervisores.");
+                        return;
+                    }
+                    perfilUsuarioAtual = {
+                        uid: user.uid,
+                        nome: userDoc.data().nome || user.displayName || 'Supervisor',
+                        cargo: 'supervisor'
+                    };
+                } catch (error) {
+                    console.error("Falha ao interpretar o perfil:", error);
+                    mostrarErro('O perfil retornado pelo Firebase é inválido.');
+                    return;
+                }
+                try {
+                    inicializarMateriaisOs({ db, auth, obterPerfil:() => perfilUsuarioAtual, mostrarErro });
+                    inicializarTelasSupervisor();
+                    inicializarUnidades();
+                } catch (error) {
+                    console.error("Falha ao iniciar o painel:", error);
+                    mostrarErro(`Permissão validada, mas o painel não iniciou: ${error.message || error.code || 'erro-desconhecido'}`);
+                }
+            });
+        });
+
+        // 🟢 CARREGAR UNIDADES
+        function inicializarUnidades() {
+            const q = query(collection(db, "unidades"));
+            onSnapshot(q, (snapshot) => {
+                const container = document.getElementById('corpoTabelaUnidades');
+                const lista = document.getElementById('listaEscolas');
+                const unidades = snapshot.docs.map(item => item.data()).filter(item => item.nome)
+                    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+                let htmlTabela = '';
+                escolasDisponiveis.clear();
+                unidades.forEach(d => {
+                    escolasDisponiveis.add(d.nome);
+                    htmlTabela += `
+                        <tr>
+                            <td><b>${escapeHtml(d.nome)}</b></td>
+                            <td>${escapeHtml(d.endereco || '-')}</td>
+                        </tr>
+                    `;
+                });
+
+                if (container) container.innerHTML = htmlTabela || '<tr><td colspan="2" style="text-align:center;">Nenhuma unidade cadastrada.</td></tr>';
+                lista.innerHTML = unidades.map(item => `<option value="${escapeHtml(item.nome)}"></option>`).join('');
+                document.getElementById('listaBuscaUnidades').innerHTML =
+                    unidades.map(item => `<option value="${escapeHtml(item.nome)}"></option>`).join('');
+            });
+        }
+
+        // 🟢 SALVAR NOVA UNIDADE
+        document.getElementById('formUnidade').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const nome = document.getElementById('nomeUnidade').value.trim();
+            const endereco = document.getElementById('enderecoUnidade').value.trim();
+
+            try {
+                await addDoc(collection(db, "unidades"), {
+                    nome: nome,
+                    endereco: endereco,
+                    criado_em: new Date().toISOString()
+                });
+                alert("Unidade cadastrada com sucesso!");
+                e.target.reset();
+            } catch (error) {
+                console.error(error);
+                alert("Falha ao salvar a unidade no banco de dados.");
+            }
+        });
+
+        // 🟢 ABRIR NOVO CHAMADO (Demanda)
+        document.getElementById('formDemanda').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const escolaSelecionada = document.getElementById('unidadeAtendida').value.trim();
+            if (!escolasDisponiveis.has(escolaSelecionada)) return alert('Selecione uma escola cadastrada na lista.');
+            try {
+                // Gera um protocolo numérico aleatório de 6 dígitos
+                const payload = {
+                    tipo_manutencao: document.getElementById('tipoManutencao').value,
+                    unidade_atendida: escolaSelecionada,
+                    quem_atendido: document.getElementById('quemAtendido').value,
+                    prioridade: document.getElementById('prioridade').value,
+                    descricao: document.getElementById('descricao').value,
+                    status: "Pendente",
+                    prazo_limite: new Date().toISOString(),
+                    observacao_tecnico: "",
+                    status_alterado_por: perfilUsuarioAtual,
+                    status_alterado_em: serverTimestamp()
+                };
+
+                let protocolo;
+                await runTransaction(db, async (transaction) => {
+                    const contadorRef = doc(db, 'configuracoes', 'contador_protocolo');
+                    const contadorDoc = await transaction.get(contadorRef);
+                    protocolo = contadorDoc.exists() ? Number(contadorDoc.data().ultimo_numero || 999) + 1 : 1000;
+                    transaction.set(contadorRef, { ultimo_numero: protocolo }, { merge: true });
+                    transaction.set(doc(collection(db, 'demandas')), { ...payload, protocolo });
+                });
+                alert(`Chamado aberto com sucesso! Protocolo gerado: #${protocolo}`);
+                e.target.reset();
+                
+            } catch (error) {
+                console.error(error);
+                alert("Erro ao abrir o chamado.");
+            }
+        });
+
+        // 🟢 RENDERIZAR CARDS DE DEMANDAS
+        function renderizarCard(d) {
+            let corStatus = '#f59e0b';
+            if (d.status === 'Em Andamento') corStatus = '#3b82f6';
+            if (d.status === 'Concluído') corStatus = '#10b981';
+            if (d.status === 'Cancelado') corStatus = '#ef4444';
+
+            const responsavelStatus = d.status_alterado_por;
+            let alteracaoStatusTexto = 'Não registrada';
+            if (responsavelStatus && responsavelStatus.nome) {
+                const dataAlteracao = d.status_alterado_em?.toDate
+                    ? d.status_alterado_em.toDate()
+                    : d.status_alterado_em ? new Date(d.status_alterado_em) : null;
+                const dataTexto = dataAlteracao && !isNaN(dataAlteracao) ? ` em ${dataAlteracao.toLocaleString('pt-BR')}` : '';
+                alteracaoStatusTexto = `${responsavelStatus.nome} (${responsavelStatus.cargo || 'cargo não informado'})${dataTexto}`;
+            }
+
+let prazoTexto = "Não definido";
+if (d.prazo_limite) {
+    if (d.prazo_limite.includes("Solicitado em")) {
+        // Se já for um texto legado, remove a palavra e mostra só a data
+        prazoTexto = d.prazo_limite.replace("Solicitado em:", "").trim();
+    } else {
+        // Se for o formato novo (ISO), converte para o formato brasileiro
+        const dataConvertida = new Date(d.prazo_limite);
+        if (!isNaN(dataConvertida)) {
+            prazoTexto = dataConvertida.toLocaleString('pt-BR');
+        } else {
+            prazoTexto = d.prazo_limite; // Se tudo falhar, exibe o texto puro
+        }
+    }
+}
+
+            const tipoSelecionado = tipoOsAtual(d.tipo_manutencao);
+            const tipoOptions = TIPOS_OS.map(tipo => `<option value="${escapeHtml(tipo)}" ${tipo === tipoSelecionado ? 'selected' : ''}>${escapeHtml(tipo)}</option>`).join('');
+            const prioridadeSelecionada = prioridadeAtual(d.prioridade);
+            const prioridadeOptions = PRIORIDADES.map(prioridade => `<option value="${escapeHtml(prioridade)}" ${prioridade === prioridadeSelecionada ? 'selected' : ''}>${escapeHtml(prioridade)}</option>`).join('');
+            const dataSolicitacao = (() => {
+                const valor = d.criado_em || d.prazo_limite || '';
+                const data = new Date(String(valor).replace('Solicitado em:', '').trim());
+                return isNaN(data) ? '' : data.toISOString().slice(0, 10);
+            })();
+            d = Object.fromEntries(Object.entries(d).map(([chave, valor]) => [chave, escapeHtml(valor)]));
+            prazoTexto = escapeHtml(prazoTexto);
+            alteracaoStatusTexto = escapeHtml(alteracaoStatusTexto);
+
+            return `
+                <div class="card-demanda ${classeCorDemanda(d)}" data-protocolo="${d.protocolo}" data-prioridade="${d.prioridade || ''}" data-status="${d.status || ''}" data-data="${dataSolicitacao}" data-unidade="${d.unidade_atendida || ''}" data-tipo-manutencao="${escapeHtml(tipoSelecionado)}" data-categoria="${d.tipo_manutencao === 'TI' ? 'ti' : 'geral'}" data-demanda-card="${d.id}">
+                    <div class="header-demanda">
+                        <span class="protocolo">#${d.protocolo}</span>
+                        <span class="escola-card-resumo" title="${d.unidade_atendida || ''}">${d.unidade_atendida || 'Escola não informada'}</span>
+                        <span class="badge" style="background: ${corStatus}">${d.status}</span>
+                        <button class="btn-minimizar-demanda" type="button" data-minimizar-demanda="${d.id}" aria-expanded="true">Minimizar</button>
+                    </div>
+                    <div class="grid-edicao-demanda">
+                        <label>Prioridade<select data-campo="prioridade">${prioridadeOptions}</select></label>
+                        <label>Tipo de OS<select data-campo="tipo_manutencao">${tipoOptions}</select></label>
+                        <label class="campo-largo">Instituição<input data-campo="unidade_atendida" maxlength="200" value="${d.unidade_atendida || ''}"></label>
+                    </div>
+                    <div><b>Atendido:</b> ${d.quem_atendido || 'Não informado'}</div>
+                    <div><b>Prioridade:</b> ${d.prioridade || 'Não informada'}</div>
+                    <div style="color: var(--texto-secundario, #666);"><b>Data de Abertura:</b> ${prazoTexto}</div>
+                    <div style="color: var(--texto-secundario, #666);"><b>Última alteração de status:</b> ${alteracaoStatusTexto}</div>
+                    
+                    <label style="display:grid; gap:6px; margin-top:10px;"><b>Relato Original:</b>
+                        <textarea data-campo="descricao" rows="3" maxlength="3000" placeholder="Relato original da solicitação">${d.descricao || ''}</textarea>
+                    </label>
+                    
+                    <div style="margin-top: 12px; padding: 12px; background: rgba(59, 130, 246, 0.1); border-left: 4px solid #3b82f6; border-radius: 4px;">
+                        <b style="color: #3b82f6;">📋 Parecer do Técnico:</b><br>
+                        <span style="font-size: 14px; color: var(--texto-principal, #ccc);">
+                            ${d.observacao_tecnico ? d.observacao_tecnico : '<i style="color: var(--texto-secundario, #888);">Nenhum relato técnico registrado.</i>'}
+                        </span>
+                    </div>
+
+                    <textarea id="obs-supervisor-${d.id}" data-campo="observacao_tecnico" rows="3" placeholder="Preencha ou edite o parecer técnico" style="width:100%; margin-top:12px; padding:10px; border:1px solid var(--borda); border-radius:6px; background:var(--bg-principal); color:var(--texto-principal);">${d.observacao_tecnico || ''}</textarea>
+                    <section class="materiais-os"><h4>Materiais usados na OS (opcional)</h4><div class="material-os-form"><input data-produto-os list="listaProdutosEstoqueOs" autocomplete="off" placeholder="Digite e selecione um produto"><input data-quantidade-os type="number" min="1" max="1000000" value="1" aria-label="Quantidade"><button type="button" data-adicionar-material>Adicionar</button></div><div data-materiais-demanda="${d.id}"><small>Carregando materiais...</small></div></section>
+                    <button class="btn btn-salvar-edicao" type="button" data-acao="salvar" data-demanda-id="${d.id}">Salvar edição</button>
+                    
+                    <div class="acoes-grupo" style="margin-top: 15px; display: flex; gap: 8px;">
+                        <button class="btn-acao" style="background: #f59e0b;" data-acao="status" data-demanda-id="${d.id}" data-novo-status="Pendente">Pendente</button>
+                        <button class="btn-acao" style="background: #3b82f6;" data-acao="status" data-demanda-id="${d.id}" data-novo-status="Em Andamento">Andamento</button>
+                        <button class="btn-acao" style="background: #10b981;" data-acao="status" data-demanda-id="${d.id}" data-novo-status="Concluído">Concluir</button>
+                        <button class="btn-acao" style="background: #ef4444;" data-acao="status" data-demanda-id="${d.id}" data-novo-status="Cancelado">Cancelar</button>
+                    </div>
+                    <button class="btn-acao" style="background:#475569; margin-top:8px;" data-acao="relatorio" data-demanda-id="${d.id}">Emitir relatório</button>
+                    <button class="btn-acao" style="background:#991b1b; margin-top:8px;" data-acao="excluir" data-demanda-id="${d.id}" data-protocolo="${escapeHtml(d.protocolo)}">Excluir demanda</button>
+                </div>
+            `;
+        }
+
+        // 🟢 CARREGAR DEMANDAS
+        function inicializarTelasSupervisor() {
+            const q = query(collection(db, "demandas"), orderBy("protocolo", "desc"));
+            
+            onSnapshot(q, (snapshot) => {
+                let htmlGeral = '', htmlPendentes = '', htmlAndamento = '', htmlConcluidas = '', htmlCanceladas = '';
+                
+                snapshot.forEach(doc => {
+                    const dados = { id: doc.id, ...doc.data() };
+                    const cardHtml = renderizarCard(dados);
+                    
+                    htmlGeral += cardHtml;
+                    if (dados.status === 'Pendente') htmlPendentes += cardHtml;
+                    if (dados.status === 'Em Andamento') htmlAndamento += cardHtml;
+                    if (dados.status === 'Concluído') htmlConcluidas += cardHtml;
+                    if (dados.status === 'Cancelado') htmlCanceladas += cardHtml;
+                });
+
+                document.getElementById('listaGeral').innerHTML = htmlGeral || '<p style="color: var(--texto-secundario);">Nenhuma demanda encontrada.</p>';
+                document.getElementById('listaPendentes').innerHTML = htmlPendentes || '<p style="color: var(--texto-secundario);">Nenhuma demanda pendente.</p>';
+                document.getElementById('listaAndamento').innerHTML = htmlAndamento || '<p style="color: var(--texto-secundario);">Nenhuma demanda em andamento.</p>';
+                document.getElementById('listaConcluidas').innerHTML = htmlConcluidas || '<p style="color: var(--texto-secundario);">Nenhuma demanda concluída.</p>';
+                document.getElementById('listaCanceladas').innerHTML = htmlCanceladas || '<p style="color: var(--texto-secundario);">Nenhuma demanda cancelada.</p>';
+                document.dispatchEvent(new Event('demandas-renderizadas'));
+                aplicarFiltroBusca();
+            });
+        }
+
+        // 🟢 MUDAR STATUS
+        async function salvarDemanda(idDoc, novoStatus = null, cardAtual = null) {
+            if (novoStatus && !STATUS_PERMITIDOS.has(novoStatus)) return;
+            if (novoStatus && !confirm(`Alterar o status desta OS para "${novoStatus}"?`)) return;
+            const docRef = doc(db, "demandas", idDoc);
+            try {
+                if (!perfilUsuarioAtual) return;
+                const card = cardAtual || document.querySelector(`[data-demanda-card="${CSS.escape(idDoc)}"]`);
+                const observacao = card.querySelector('[data-campo="observacao_tecnico"]').value.trim();
+                const unidade = card.querySelector('[data-campo="unidade_atendida"]').value.trim();
+                if (!unidade) return alert('Informe a instituição.');
+                if ((novoStatus === 'Concluído' || novoStatus === 'Cancelado') && !observacao) return alert('Preencha o parecer técnico.');
+                const payload = {
+                    prioridade: card.querySelector('[data-campo="prioridade"]').value,
+                    tipo_manutencao: card.querySelector('[data-campo="tipo_manutencao"]').value,
+                    unidade_atendida: unidade,
+                    descricao: card.querySelector('[data-campo="descricao"]').value.trim(),
+                    observacao_tecnico: observacao,
+                    status_alterado_por: perfilUsuarioAtual,
+                    status_alterado_em: serverTimestamp()
+                };
+                if (novoStatus) payload.status = novoStatus;
+                if (novoStatus === 'Concluído' || novoStatus === 'Cancelado') {
+                    payload.concluido_em = new Date().toISOString();
+                }
+                await updateDoc(docRef, payload);
+                alert(novoStatus ? `Status atualizado para: ${novoStatus}` : 'Demanda atualizada.');
+            } catch (error) {
+                console.error("Erro ao atualizar status:", error);
+                alert("Falha ao salvar dados.");
+            }
+        }
+
+        async function excluirDemanda(idDoc, protocolo) {
+            const confirmado = confirm(`Excluir permanentemente a demanda #${protocolo}?\n\nEsta ação não pode ser desfeita.`);
+            if (!confirmado) return;
+            try {
+                await deleteDoc(doc(db, 'demandas', idDoc));
+                alert(`Demanda #${protocolo} excluída.`);
+            } catch (error) {
+                console.error('Falha ao excluir demanda:', error);
+                alert(`Falha ao excluir: ${error.code || 'erro-desconhecido'}`);
+            }
+        }
+        document.addEventListener('click', (event) => {
+            const botao = event.target.closest('[data-acao][data-demanda-id]');
+            if (!botao) return;
+            if (botao.dataset.acao === 'relatorio') {
+                window.location.href = `relatorios.html?demanda=${encodeURIComponent(botao.dataset.demandaId)}`;
+                return;
+            }
+            if (botao.dataset.acao === 'excluir') {
+                excluirDemanda(botao.dataset.demandaId, botao.dataset.protocolo);
+                return;
+            }
+            salvarDemanda(botao.dataset.demandaId, botao.dataset.acao === 'status' ? botao.dataset.novoStatus : null, botao.closest('.card-demanda'));
+        });
+        // 🟢 BARRA DE PESQUISA EM TEMPO REAL
+        function aplicarFiltroBusca() {
+            const filtro = document.getElementById('filtroBusca').value;
+            const termoBusca = normalizar(filtro === 'unidade'
+                ? document.getElementById('inputBuscaUnidade').value
+                : document.getElementById('inputBusca').value);
+            const cards = document.querySelectorAll('.card-demanda');
+            const modoPrioridade = filtro === 'prioridade';
+            const statusPrioridade = supervisorFiltroStatus !== 'todos' ? supervisorFiltroStatus : 'Pendente';
+
+            cards.forEach(card => {
+                const categoriaValida = supervisorFiltroCategoria === 'todas' || card.dataset.categoria === supervisorFiltroCategoria;
+                const campo = filtro === 'protocolo' ? card.dataset.protocolo
+                    : filtro === 'data' ? card.dataset.data
+                    : filtro === 'unidade' ? card.dataset.unidade
+                    : filtro === 'tipo_manutencao' ? card.dataset.tipoManutencao
+                    : card.textContent;
+                const buscaValida = modoPrioridade ? card.dataset.status === statusPrioridade : normalizar(campo).includes(termoBusca);
+                card.style.display = categoriaValida && buscaValida ? 'flex' : 'none';
+            });
+
+            const ordemPrioridade = { 'Crítico': 0, 'Alta': 1, 'Normal': 2, 'Média': 2, 'Baixa': 2 };
+            const grupoStatus = status => status === 'Pendente' || status === 'Em Andamento' ? 0
+                : status === 'Concluído' ? 1 : status === 'Cancelado' ? 2 : 3;
+            ['listaGeral', 'listaPendentes', 'listaAndamento', 'listaConcluidas', 'listaCanceladas'].forEach(id => {
+                const container = document.getElementById(id);
+                const cardsContainer = Array.from(container.children).filter(item => item.classList.contains('card-demanda'));
+                cardsContainer.sort((a, b) => modoPrioridade
+                    ? (ordemPrioridade[a.dataset.prioridade] ?? 3) - (ordemPrioridade[b.dataset.prioridade] ?? 3) || Number(b.dataset.protocolo) - Number(a.dataset.protocolo)
+                    : grupoStatus(a.dataset.status) - grupoStatus(b.dataset.status)
+                        || (grupoStatus(a.dataset.status) === 0
+                            ? Number(a.dataset.protocolo) - Number(b.dataset.protocolo)
+                            : Number(b.dataset.protocolo) - Number(a.dataset.protocolo)));
+                cardsContainer.forEach(card => container.appendChild(card));
+            });
+        }
+        document.getElementById('inputBusca').addEventListener('input', aplicarFiltroBusca);
+        document.getElementById('inputBuscaUnidade').addEventListener('input', aplicarFiltroBusca);
+        document.getElementById('filtroBusca').addEventListener('change', (event) => {
+            const input = document.getElementById('inputBusca');
+            const inputUnidade = document.getElementById('inputBuscaUnidade');
+            input.value = '';
+            inputUnidade.value = '';
+            input.type = event.target.value === 'data' ? 'date' : 'search';
+            input.setAttribute('list', event.target.value === 'tipo_manutencao' ? 'listaBuscaTipos' : '');
+            input.disabled = event.target.value === 'prioridade';
+            input.hidden = event.target.value === 'unidade';
+            inputUnidade.hidden = event.target.value !== 'unidade';
+            input.placeholder = event.target.value === 'prioridade' ? 'Pendentes: Crítico, Alta e Normal'
+                : event.target.value === 'data' ? '' : event.target.value === 'unidade' ? 'Nome da escola ou unidade'
+                    : event.target.value === 'tipo_manutencao' ? 'Digite ou selecione o tipo de manutenção' : 'Digite para filtrar a listagem...';
+            aplicarFiltroBusca();
+        });
+        // Logout
+        document.getElementById('btnSair').addEventListener('click', () => {
+            signOut(auth).then(() => { window.location.href = '../index.html'; });
+        });
+    </script>
+</body>
+</html>
